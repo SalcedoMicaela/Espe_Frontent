@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prueba Geolocalización</title>
+  </head>
+  <body>
+    <h1>Prueba Geolocalización en Móvil</h1>
+
+    <script>
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          function (pos) {
+            alert(
+              "Latitud: " +
+                pos.coords.latitude +
+                ", Longitud: " +
+                pos.coords.longitude
+            );
+          },
+          function (err) {
+            alert("Error obteniendo ubicación: " + err.message);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+          }
+        );
+      } else {
+        alert("Geolocalización no soportada");
+      }
+    </script>
+  </body>
+</html>
