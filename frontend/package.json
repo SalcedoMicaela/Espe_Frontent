@@ -4,8 +4,8 @@
   "description": "",
   "main": "service-worker.js",
   "scripts": {
-  "start": "serve -s . -l 10000"
-},
+    "start": "serve -s . -l %PORT%"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
