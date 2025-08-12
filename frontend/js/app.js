@@ -118,7 +118,22 @@ async function buscarRutaSegura() {
 
     // Si ya hay ruta dibujada, la eliminamos antes
     if (capaRutaSegura) {
-      window.map.removeLayer(capaRutaSegura);
+      const bounds = capaRutaSegura.getBounds();
+      const center = bounds.getCenter();
+
+      // Calcular tamaño aproximado de la ruta
+      const sizeLat = Math.abs(bounds.getNorth() - bounds.getSouth());
+      const sizeLng = Math.abs(bounds.getEast() - bounds.getWest());
+
+      // Si la ruta es pequeña, mantenemos zoom fijo
+      if (sizeLat < 0.0005 && sizeLng < 0.0005) {
+        window.map.setView(center, 17); // Zoom fijo para rutas cortas
+      } else {
+        window.map.fitBounds(bounds, {
+          padding: [50, 50],
+          maxZoom: 17, // evita zoom excesivo
+        });
+      }
     }
 
     capaRutaSegura = L.geoJSON(rutaGeoJSON, {
