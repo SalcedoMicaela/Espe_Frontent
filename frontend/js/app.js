@@ -1,29 +1,31 @@
+// app.js
+
+const BACKEND_URL = "https://espe-1.onrender.com";
+
 // Crear mapa centrado en la zona aproximada
-window.map = L.map("map").setView([-0.315, -78.445], 16); // Ajusta el centro y zoom
+window.map = L.map("map").setView([-0.315, -78.445], 16);
 
-// Añadir la imagen overlay georreferenciada usando los límites del KML
+// Imagen overlay georreferenciada
 const imageUrl = "assets/tiles/Espe_Offline_Map/files/Espe_Offline_Map_16.JPG";
-
-// LatLngBounds: [[southWest_lat, southWest_lng], [northEast_lat, northEast_lng]]
 const imageBounds = [
-  [-0.324095, -78.453369], // southWest (lat, lng)
-  [-0.307616, -78.43689], // northEast (lat, lng)
+  [-0.324095, -78.453369], // SW
+  [-0.307616, -78.43689], // NE
 ];
-
 L.imageOverlay(imageUrl, imageBounds).addTo(window.map);
-
-// Opcional: Limitar el mapa para que no se mueva fuera del área de la imagen
 window.map.setMaxBounds(imageBounds);
 
-// Icono personalizado para puntos seguros (ajusta tamaño y anclaje)
+// Icono personalizado para puntos seguros
 const puntoSeguroIcon = L.icon({
   iconUrl: "./assets/iconos/punto_encuentro.png",
-  iconSize: [24, 24], // Tamaño más pequeño
-  iconAnchor: [12, 24], // Punto "pegado" al marcador
-  popupAnchor: [0, -24], // Popup arriba del icono
+  iconSize: [24, 24],
+  iconAnchor: [12, 24],
+  popupAnchor: [0, -24],
 });
 
-// Función para cargar y mostrar GeoJSON con filtro y estilos
+let marcadorUsuario = null;
+let capaRutaSegura = null;
+
+// Cargar puntos seguros y zonas desde GeoJSON local
 async function cargarDatosGeoJSON() {
   try {
     const response = await fetch("./data/datos_volcan.geojson");
@@ -32,32 +34,19 @@ async function cargarDatosGeoJSON() {
     const data = await response.json();
 
     L.geoJSON(data, {
-      filter: function (feature) {
-        // Mostrar puntos seguros y polígonos de riesgo
-        return (
-          (feature.geometry.type === "Point" &&
-            feature.properties.es_punto_seguro === true) ||
-          feature.geometry.type === "Polygon"
-        );
-      },
-      pointToLayer: function (feature, latlng) {
-        if (
-          feature.geometry.type === "Point" &&
-          feature.properties.es_punto_seguro === true
-        ) {
-          return L.marker(latlng, { icon: puntoSeguroIcon });
-        }
-      },
-      style: function (feature) {
-        if (feature.geometry.type === "Polygon") {
-          return {
-            color: "red",
-            weight: 2,
-            fillOpacity: 0.4,
-          };
-        }
-      },
-      onEachFeature: function (feature, layer) {
+      filter: (feature) =>
+        (feature.geometry.type === "Point" &&
+          feature.properties.es_punto_seguro === true) ||
+        feature.geometry.type === "Polygon",
+      pointToLayer: (feature, latlng) =>
+        feature.geometry.type === "Point"
+          ? L.marker(latlng, { icon: puntoSeguroIcon })
+          : null,
+      style: (feature) =>
+        feature.geometry.type === "Polygon"
+          ? { color: "red", weight: 2, fillOpacity: 0.4 }
+          : null,
+      onEachFeature: (feature, layer) => {
         if (feature.geometry.type === "Point" && feature.properties.id_osm) {
           layer.bindPopup(
             `Punto seguro<br>ID OSM: ${feature.properties.id_osm}`
@@ -78,7 +67,86 @@ async function cargarDatosGeoJSON() {
   }
 }
 
-// Ejecutar carga GeoJSON al cargar la página
+// Mostrar ubicación actual del usuario y guardar marcador
+function mostrarUbicacionActual() {
+  if (!navigator.geolocation) {
+    alert("Geolocalización no es soportada por este navegador");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const latlng = [pos.coords.latitude, pos.coords.longitude];
+
+      // Si ya hay marcador, actualizar posición
+      if (marcadorUsuario) {
+        marcadorUsuario.setLatLng(latlng);
+      } else {
+        marcadorUsuario = L.marker(latlng)
+          .addTo(window.map)
+          .bindPopup("Tu ubicación")
+          .openPopup();
+      }
+
+      window.map.setView(latlng, 17);
+    },
+    (err) => {
+      alert("Error al obtener ubicación: " + err.message);
+    }
+  );
+}
+
+// Solicitar ruta segura al backend y dibujarla en el mapa
+async function buscarRutaSegura() {
+  if (!marcadorUsuario) {
+    alert("No se ha detectado tu ubicación aún.");
+    return;
+  }
+
+  const { lat, lng } = marcadorUsuario.getLatLng();
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/ruta_segura`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lat, lon: lng }),
+    });
+
+    if (!response.ok) throw new Error("Error al obtener la ruta segura");
+
+    const rutaGeoJSON = await response.json();
+
+    // Si ya hay ruta dibujada, la eliminamos antes
+    if (capaRutaSegura) {
+      window.map.removeLayer(capaRutaSegura);
+    }
+
+    capaRutaSegura = L.geoJSON(rutaGeoJSON, {
+      style: { color: "blue", weight: 4, opacity: 0.8 },
+    }).addTo(window.map);
+
+    // Centrar el mapa en la ruta
+    window.map.fitBounds(capaRutaSegura.getBounds());
+
+    console.log("Ruta segura cargada");
+  } catch (error) {
+    console.error("Error:", error);
+    alert("No se pudo obtener la ruta segura.");
+  }
+}
+function errorCallback(err) {
+  console.error("Error de geolocalización:", err);
+  alert(`Error al obtener ubicación: ${err.message} (código ${err.code})`);
+}
+
+// Evento botón para buscar ruta segura
+document
+  .getElementById("btnBuscarRuta")
+  .addEventListener("click", buscarRutaSegura);
+
+// Al cargar la página
 window.onload = () => {
   cargarDatosGeoJSON();
+  mostrarUbicacionActual();
+  buscarRutaSegura();
 };

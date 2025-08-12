@@ -4,7 +4,7 @@
   "description": "",
   "main": "service-worker.js",
   "scripts": {
-    "start": "serve -s . -l %PORT%"
+    "start": "serve -s . -l $PORT"
   },
   "keywords": [],
   "author": "",

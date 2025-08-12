@@ -1,12 +1,12 @@
-// Crear mapa centrado en Sangolquí
+// mapa.js - mapa con OpenStreetMap online + carga datos + ruta segura remota
+
 const map = L.map("map").setView([-0.3297, -78.0947], 13);
 
-// Cargar tiles de OpenStreetMap
+// Cargar tiles OpenStreetMap
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "&copy; OpenStreetMap contributors",
 }).addTo(map);
 
-// Definir icono personalizado para puntos seguros
 const puntoSeguroIcon = L.icon({
   iconUrl: "assets/iconos/punto_encuentro.png",
   iconSize: [32, 32],
@@ -14,20 +14,15 @@ const puntoSeguroIcon = L.icon({
   popupAnchor: [0, -32],
 });
 
-// Cargar y mostrar datos GeoJSON
 fetch("data/datos_volcan.geojson")
   .then((response) => response.json())
   .then((data) => {
     L.geoJSON(data, {
-      filter: function (feature) {
-        // Mostrar puntos seguros y polígonos de riesgo
-        return (
-          (feature.geometry.type === "Point" &&
-            feature.properties.es_punto_seguro === true) ||
-          feature.geometry.type === "Polygon"
-        );
-      },
-      pointToLayer: function (feature, latlng) {
+      filter: (feature) =>
+        (feature.geometry.type === "Point" &&
+          feature.properties.es_punto_seguro === true) ||
+        feature.geometry.type === "Polygon",
+      pointToLayer: (feature, latlng) => {
         if (
           feature.geometry.type === "Point" &&
           feature.properties.es_punto_seguro === true
@@ -35,17 +30,12 @@ fetch("data/datos_volcan.geojson")
           return L.marker(latlng, { icon: puntoSeguroIcon });
         }
       },
-      style: function (feature) {
+      style: (feature) => {
         if (feature.geometry.type === "Polygon") {
-          // Estilo para polígonos de riesgo
-          return {
-            color: "red",
-            weight: 2,
-            fillOpacity: 0.4,
-          };
+          return { color: "red", weight: 2, fillOpacity: 0.4 };
         }
       },
-      onEachFeature: function (feature, layer) {
+      onEachFeature: (feature, layer) => {
         if (feature.geometry.type === "Point" && feature.properties.id_osm) {
           layer.bindPopup(
             `Punto seguro<br>ID OSM: ${feature.properties.id_osm}`
@@ -62,6 +52,24 @@ fetch("data/datos_volcan.geojson")
       },
     }).addTo(map);
   })
-  .catch((error) => {
-    console.error("Error cargando el GeoJSON:", error);
-  });
+  .catch((error) => console.error("Error cargando GeoJSON:", error));
+
+// Cargar ruta segura desde API remota (solo si tienes internet)
+async function cargarRutaSegura() {
+  try {
+    const response = await fetch("https://espe-1.onrender.com/api/ruta_segura");
+    if (!response.ok) throw new Error("Error al cargar ruta segura");
+
+    const ruta = await response.json();
+
+    L.geoJSON(ruta, {
+      style: { color: "blue", weight: 4, opacity: 0.7 },
+    }).addTo(map);
+  } catch (error) {
+    console.error("Error cargando ruta segura:", error);
+  }
+}
+
+window.onload = () => {
+  cargarRutaSegura();
+};
